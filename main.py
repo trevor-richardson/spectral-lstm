@@ -54,6 +54,7 @@ from xor import XOR
 from simple_lstm import SimpleLSTM, SimpleRNN
 from spectral_lstm import SpectralLSTM
 from svd_lstm import SvdLSTM
+from gru import VanillaGRU
 
 parser = argparse.ArgumentParser(description='SpectralRNN')
 parser.add_argument('--lr', type=float, default=1e-4,
@@ -75,7 +76,7 @@ parser.add_argument('--batch-size', type=int, default=64,
 parser.add_argument('--log-dir', default=base_dir + '/results/',
                     help='directory to save agent logs (default: base_dir/results/)')
 parser.add_argument('--model-type', type=str, default='lstm',
-                    help='use rnn, lstm, slstm, svdlstm')
+                    help='use rnn, lstm, gru, phole, slstm, svdlstm')
 parser.add_argument('--task', type=str, default='mem',
                     help='use add, mul, mem, xor, bball, seqmnist, strokemnist')
 parser.add_argument('--sequence-len', type=int, default=50,
@@ -170,21 +171,23 @@ def create_model():
         return SimpleRNN(input_size=dset.input_dimension,
                                      hidden_size=args.hx,
                                      output_size=dset.output_dimension,
-                                     layers=args.layers,
-                                     orthogonal=args.orthogonal_init)
+                                     layers=args.layers)
     elif args.model_type == 'lstm':
         return SimpleLSTM(input_size=dset.input_dimension,
                                       hidden_size=args.hx,
                                       output_size=dset.output_dimension,
-                                      layers=args.layers,
-                                      orthogonal=args.orthogonal_init)
+                                      layers=args.layers)
+    if args.model_type == 'gru':
+        return VanillaGRU(input_size=dset.input_dimension,
+                                     hidden_size=args.hx,
+                                     output_size=dset.output_dimension,
+                                     layers=args.layers)
     elif args.model_type == 'slstm':
         return SpectralLSTM(input_size=dset.input_dimension,
                                           hidden_size=args.hx,
                                           output_size=dset.output_dimension,
                                           output_weighting=args.output_weighting,
-                                          layers=args.layers,
-                                          orthogonal=args.orthogonal_init)
+                                          layers=args.layers)
     elif args.model_type == 'svdlstm':
         return SvdLSTM(input_size=dset.input_dimension,
                                           hidden_size=args.hx,
