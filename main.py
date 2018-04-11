@@ -34,17 +34,17 @@ sys.path.append(base_dir + '/tasks/noiseless_memorization/')
 '''
 
 To Do's
-Make sure all tasks work as expected -- with accuracy
+
 Make sure new two google brain tasks work
 Add batchnorm as intermediate layer for network to battle covariate shift
 Write visualization classes
+
 Update Readme
 
 '''
 
 #get the datasets of iterest
 from addition import Addition
-from noiseless_memorization import NoiselessMemorization
 from bouncing_ball import BouncingBall
 from multiplication import Multiplication
 from noiseless_memorization import NoiselessMemorization
@@ -78,10 +78,6 @@ parser.add_argument('--model-type', type=str, default='lstm',
                     help='use rnn, lstm, slstm, svdlstm')
 parser.add_argument('--task', type=str, default='mem',
                     help='use add, mul, mem, xor, bball, seqmnist, strokemnist')
-parser.add_argument('--output-weighting', action='store_true', default=False,
-                    help='use row wise weighting for lstm output')
-parser.add_argument('--orthogonal-init', action='store_true', default=False,
-                    help='use initialize weights orthogonally')
 parser.add_argument('--sequence-len', type=int, default=50,
                     help='mem seq len (default: 50)')
 parser.add_argument('--vis', action='store_true', default=False,
@@ -132,7 +128,7 @@ def create_criterion():
         activation = nn.Sigmoid()
         criterion = nn.MSELoss()
     elif args.task == 'mem':
-        activation = nn.Sigmoid()
+        activation = nn.LogSoftmax(dim=1)
         criterion = nn.BCELoss()
     elif args.task == 'xor':
         activation = nn.Sigmoid()
@@ -233,7 +229,7 @@ def train(epoch):
     total_loss = 0.0
     steps = 0
     n_correct = 0
-
+    n_possible = 0
 
     for batch_idx, (data, target) in enumerate(data_loader):
         #prepare data
@@ -246,17 +242,19 @@ def train(epoch):
         if args.task == 'seqmnist':
             pred = torch.cat(predicted_list)
             y_ = torch.cat(y_list)
-            print(pred.shape, y_.shape)
             prediction = pred.data.max(1, keepdim=True)[1] # get the index of the max log-probability
             n_correct += prediction.eq(y_.data.view_as(prediction)).sum()
+            n_possible += int(prediction.shape[0])
             loss = F.nll_loss(pred, y_)
 
         elif args.task == 'mem':
-            #error in mem
-            pred = predicted_list[5:]
-            pred = torch.stack(pred, 1)
-            target = target[:,5:]
-            loss = criterion(pred, target)
+            pred = predicted_list[-5:]
+            pred = torch.stack(pred).transpose(1, 0).contiguous().view(-1, 3)
+            target = target[:,-5:].contiguous().long().view(-1)
+            prediction = pred.data.max(1, keepdim=True)[1].contiguous() # get the index of the max log-probability
+            n_correct += prediction.eq(target.data.view_as(prediction)).sum()
+            n_possible += int(prediction.shape[0] * prediction.shape[1])
+            loss = F.nll_loss(pred, target)
         else:
             pred = torch.stack(predicted_list, 1)
             y_ = torch.stack(y_list, 1)
@@ -269,9 +267,9 @@ def train(epoch):
 
 
     print("Train loss ", total_loss/steps)
-    if args.task == 'seqmnist':
-        print("Train Acc ", (n_correct/ (steps * args.batch_size)))
-        train_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/ (steps * args.batch_size))))
+    if args.task == 'seqmnist' or args.task == 'mem':
+        print("Train Acc ", (n_correct/ n_possible))
+        train_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/n_possible)))
     else:
         train_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(-1)))
     train_csvfile.flush()
@@ -283,6 +281,7 @@ def validate(epoch):
 
     total_loss = 0.0
     n_correct = 0
+    n_possible = 0
     steps = 0
 
     for batch_idx, (data, target) in enumerate(data_loader):
@@ -296,17 +295,19 @@ def validate(epoch):
         if args.task == 'seqmnist':
             pred = predicted_list[-1]
             y_ = y_list[-1]
-            print(pred.shape, y_.shape)
             prediction = pred.data.max(1, keepdim=True)[1] # get the index of the max log-probability
             n_correct += prediction.eq(y_.data.view_as(prediction)).sum()
+            n_possible += int(prediction.shape[0])
             loss = F.cross_entropy(pred, y_)
 
         elif args.task == 'mem':
-
-            pred = predicted_list[5:]
-            pred = torch.stack(pred, 1)
-            target = target[:,5:]
-            loss = criterion(pred, target)
+            pred = predicted_list[-5:]
+            pred = torch.cat(pred)
+            target = target[:,-5:].contiguous().long().view(-1)
+            prediction = pred.data.max(1, keepdim=True)[1].contiguous() # get the index of the max log-probability
+            n_correct += prediction.eq(target.data.view_as(prediction)).sum()
+            n_possible += int(prediction.shape[0] * prediction.shape[1])
+            loss = F.nll_loss(pred, target)
         else:
             pred = torch.stack(predicted_list, 1)
             y_ = torch.stack(y_list, 1)
@@ -315,14 +316,14 @@ def validate(epoch):
         steps += 1
         total_loss += loss.cpu().data.numpy()[0]
 
-    if args.task == 'seqmnist':
-        val_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/(steps*args.batch_size))))
+    if args.task == 'seqmnist' or args.task == 'mem':
+        print("Validation Acc ", n_correct/n_possible)
+        val_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/n_possible)))
     else:
         val_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc='-1'))
     val_csvfile.flush()
 
     return total_loss / steps
-
 
 def save_checkpoint(state, is_best, filename='checkpoint.pth'):
     torch.save(state, os.path.join(args.log_dir, filename))
