@@ -15,13 +15,10 @@ class SvdLSTMCell(nn.Module):
     def __init__(self,
                  input_size=1,
                  hidden_size=64,
-                 output_size=1,
-                 output_weighting=True,
-                 orthogonal=False):
+                 output_size=1):
         super(SvdLSTMCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.orthogonal = orthogonal
 
         #input weight matrices
         self.Wi = nn.Parameter(torch.Tensor(hidden_size, input_size))
@@ -137,21 +134,18 @@ class SvdLSTM(nn.Module):
                  hidden_size=64,
                  output_size=1,
                  output_weighting=True,
-                 layers=1,
-                 orthogonal=False):
+                 layers=1):
         super(SvdLSTM, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.output_weighting = output_weighting
         self.layers = layers
-        self.orthogonal = orthogonal
 
         self.lstms = nn.ModuleList()
-        self.lstms.append(SvdLSTMCell(input_size=input_size, hidden_size=hidden_size, output_weighting=output_weighting, orthogonal=orthogonal))
+        self.lstms.append(SvdLSTMCell(input_size=input_size, hidden_size=hidden_size))
         for i in range(self.layers-1):
-            self.lstms.append(SvdLSTMCell(input_size=hidden_size, hidden_size=hidden_size, output_weighting=output_weighting, orthogonal=orthogonal))
+            self.lstms.append(SvdLSTMCell(input_size=hidden_size, hidden_size=hidden_size))
         self.fc1 = nn.Linear(hidden_size, output_size)
 
         nn.init.xavier_normal(self.fc1.weight.data)
