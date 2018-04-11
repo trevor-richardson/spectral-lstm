@@ -1,2 +1,5 @@
 # spectral-lstm
-Disentangle cell state in recurrent models to be a matrix of shape MxN and utilize SVD to extract features and their strengths
+Given Fixed Input and Output Vectors: Generalize Cell State to be a Matrix of MXN where SVD is used to extract h_t
+
+In order to run change the base_dir in config.ini to the current directory
+
