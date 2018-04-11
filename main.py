@@ -23,24 +23,36 @@ config.read('../config.ini')
 
 base_dir = config['DEFAULT']['BASE_DIR']
 sys.path.append(base_dir + '/models/')
-sys.path.append(base_dir + '/vrep_scripts/')
-sys.path.append(base_dir + '/tasks/memorization/')
-sys.path.append(base_dir + '/tasks/copy_task/')
 
+sys.path.append(base_dir + '/tasks/addition/')
+sys.path.append(base_dir + '/tasks/bouncing_ball/')
+sys.path.append(base_dir + '/tasks/multiplication/')
+sys.path.append(base_dir + '/tasks/xor/')
+sys.path.append(base_dir + '/tasks/sequential_mnist/')
+sys.path.append(base_dir + '/tasks/noiseless_memorization/')
+
+
+sys.path.append(base_dir + '/tasks/copy_task/')
 
 '''
 
 To Do's
-Import lstm and tasks
-Write a script to train
-Write visualization mechanism for cell and hidden output
-Write evaluation script
+Make sure all tasks work as expected -- with accuracy
+Make sure new two google brain tasks work
+
+Write visualization classes
 Update Readme
 
 '''
-
-from copy_task import CopyTask
+#get the datasets of iterest
+from addition import Addition
 from noiseless_memorization import NoiselessMemorization
+from bouncing_ball import BouncingBall
+from multiplication import Multiplication
+from noiseless_memorization import NoiselessMemorization
+from sequential_mnist import SequentialMNIST
+from xor import XOR
+
 from simple_lstm import SimpleLSTM, SimpleRNN
 from spectral_lstm import SpectralLSTM
 from svd_lstm import SvdLSTM
