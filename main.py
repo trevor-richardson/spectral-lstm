@@ -1,4 +1,4 @@
-
+import time
 import argparse
 import os
 import random
@@ -31,8 +31,6 @@ sys.path.append(base_dir + '/tasks/xor/')
 sys.path.append(base_dir + '/tasks/sequential_mnist/')
 sys.path.append(base_dir + '/tasks/noiseless_memorization/')
 
-
-sys.path.append(base_dir + '/tasks/copy_task/')
 
 '''
 
@@ -155,24 +153,20 @@ def create_dset():
     elif args.task == 'mul':
         dset = Multiplication()
     elif args.task == 'mem':
-        dset = CopyTask(sequence_len=args.sequence_len)
+        dset = NoiselessMemorization(sequence_len=args.sequence_len)
     elif args.task == 'xor':
         dset = XOR()
     elif args.task == 'bball':
         dset = BouncingBall(vectorize=True)
     elif args.task == 'seqmnist':
         dset = SequentialMNIST()
-    elif args.task == 'strokemnist':
-        dset = StrokeMNIST()
     else:
         raise Exception
     return dset
 
-
 dset = create_dset()
 data_loader = torch.utils.data.DataLoader(dset, batch_size=args.batch_size, num_workers=2, shuffle=True)
 activation, criterion = create_criterion()
-
 
 def create_model():
     if args.model_type == 'rnn':
@@ -205,7 +199,7 @@ def create_model():
     else:
         raise Exception
 
-
+#create model
 model = create_model()
 params = 0
 for p in list(model.parameters()):
@@ -214,22 +208,24 @@ print ("Num params: ", params)
 print (model)
 if args.cuda:
     model.cuda()
+
+#initalize optimizer and learning rate decay scheduler
 optimizer = optim.RMSprop(model.parameters(), lr=args.lr) #, momentum=args.momentum, alpha=args.alpha)
 scheduler = ExponentialLR(optimizer, 0.95)
 
 
-def run_sequence(seq):
+def run_sequence(seq, target):
     outputs = []
+    targets = []
     model.reset(batch_size=seq.size(0), cuda=args.cuda)
     for i, input_t in enumerate(seq.chunk(seq.size(1), dim=1)):
         input_t = input_t.squeeze(1)
         p = activation(model(input_t))
 
         outputs.append(p)
-    outputs = outputs[5:]
-    outputs = torch.stack(outputs, 1)
+        targets.append(target)
 
-    return outputs
+    return outputs, targets
 
 
 def train(epoch):
@@ -238,66 +234,51 @@ def train(epoch):
 
     total_loss = 0.0
     steps = 0
+    n_correct = 0
+
     for batch_idx, (data, target) in enumerate(data_loader):
+        #prepare data
         if args.cuda:
             data, target = data.cuda(), target.cuda()
         data, target = Variable(data), Variable(target)
-        target = target[:,5:]
-        if args.task == 'strokemnist':
-            mask = data[:, :, 4] # batch, timesteps, dim
-            data = data[:, :, 0:4] # batch, timesteps, dim
         optimizer.zero_grad()
-        output = run_sequence(data)
+        predicted_list, y_list = run_sequence(data, target)
 
-        # if args.task == 'strokemnist':
-        if args.task == 'seqmnist' or args.task == 'strokemnist':
-            target = target.expand(output.size()[0], output.size()[1])
-            # print (target.size())
-            # input("")
-            # target = mask * target
-            # input("target masked")
-            # mask_output = mask.unsqueeze(2)
-            # mask_output = mask_output.expand(*output.size())
-            # output = mask_output * output
+        if args.task == 'seqmnist':
+            pred = torch.cat(predicted_list)
+            y_ = torch.cat(y_list)
+            prediction = pred.data.max(1, keepdim=True)[1] # get the index of the max log-probability
+            n_correct += prediction.eq(y_.data.view_as(prediction)).sum()
+            loss = F.nll_loss(pred, y_)
 
-        if isinstance(criterion, nn.CrossEntropyLoss):
-            # Reshape for cross entropy of sequence
-            output = output.contiguous().view(-1) #, output.size(2))
-            target = target.contiguous().view(-1).long()
-
-        loss = criterion(output, target)
-
-        if args.task == 'strokemnist':
-            loss = loss.view(data.size()[0], data.size()[1])
-            loss = loss * mask
-
-        if args.task == 'strokemnist':
-            # now get new mask for exp loss
-            loss = loss.view(data.size()[0], data.size()[1])
-            loss_mask = Variable(torch.zeros(loss.size()))
-            for i in range(data.size()[0]):
-                t = int(mask[i].sum())
-                loss_mask[i, :t] = Variable(torch.exp(-(t-1-torch.arange(t))))
-            loss = loss * loss_mask
-            loss = loss.mean()
-
-        if args.task == 'seqmnist' or args.task == 'strokemnist':
-            loss = loss.mean()
+        elif args.task == 'noiseless_memorization':
+            pred = pred[5:]
+            pred = torch.strack(predicted_list, 1)
+            target = target[:,5:]
+            loss = criterion(pred, target)
+        else:
+            pred = torch.strack(predicted_list, 1)
+            y_ = torch.stack(y_list, 1)
+            loss = criterion(pred, target)
 
         loss.backward()
-        # print ("Loss: ", loss.cpu().data.numpy()[0])
         optimizer.step()
         steps += 1
         total_loss += loss.cpu().data.numpy()[0]
 
-        train_csvwriter.writerow(dict(epoch=str(epoch), loss=str(loss.cpu().data.numpy()[0]), avg_loss="-1"))
-        train_csvfile.flush()
+        loss.backward()
+        optimizer.step()
+        steps += 1
+        total_loss += loss.cpu().data.numpy()[0]
 
         # attempt to preserve memory
         del data, target, output, loss
     print("Train loss ", total_loss/steps)
-
-    train_csvwriter.writerow(dict(epoch=str(epoch), loss="-1", avg_loss=str(total_loss/steps)))
+    if args.task == 'seqmnist':
+        print("Train Acc ", n_correct/ (steps * args.batch_size))
+        train_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/ (steps * args.batch_size))))
+    else:
+        train_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(-1))))
     train_csvfile.flush()
 
 
@@ -307,65 +288,40 @@ def validate(epoch):
 
     total_loss = 0.0
     n_correct = 0
-    n_total = 0
     steps = 0
+
     for batch_idx, (data, target) in enumerate(data_loader):
         if args.cuda:
             data, target = data.cuda(), target.cuda()
-        # with torch.no_grad():
-        target = target[:,5:]
+
         data, target = Variable(data, volatile=True), Variable(target, volatile=True)
-        if args.task == 'seqmnist' or args.task == 'strokemnist':
-            mask = data[:, :, 4] # batch, timesteps, dim
-            data = data[:, :, 0:4] # batch, timesteps, dim
-        output = run_sequence(data)
 
-        # # print (output[:,-1,:].data.size(), target.size())
-        # pred = output[:,-1,:].data.max(1, keepdim=True)[1].long() # get the index of the max log-probability
-        # # print (pred.size())
-        # n_total += data.size()[0] # batch size
-        # batch_correct = pred.eq(target.data.view_as(pred).long()).cpu().sum()
-        # n_correct += batch_correct
-        # batch_accuracy = batch_correct / data.size()[0]
+        predicted_list, y_list = run_sequence(data, target)
 
-        if args.task == 'seqmnist' or args.task == 'strokemnist':
-            # expand classification...
-            target = target.expand(output.size()[0], output.size()[1]).contiguous()
-            target = mask * target
-            # input("target masked")
-            mask_output = mask.unsqueeze(2)
-            mask_output = mask_output.expand(*output.size())
-            output = mask_output * output
+        if args.task == 'seqmnist':
+            pred = torch.cat(predicted_list)
+            y_ = torch.cat(y_list)
+            prediction = pred.data.max(1, keepdim=True)[1] # get the index of the max log-probability
+            n_correct += prediction.eq(y_.data.view_as(prediction)).sum()
+            loss = F.cross_entropy(pred, y_)
 
-        if isinstance(criterion, nn.CrossEntropyLoss):
-            # Reshape for cross entropy of sequence
-            output = output.view(-1, output.size(2))
-            target = target.view(-1).long()
+        elif args.task == 'noiseless_memorization':
+            pred = pred[5:]
+            pred = torch.strack(predicted_list, 1)
+            target = target[:,5:]
+            loss = criterion(pred, target)
+        else:
+            pred = torch.strack(predicted_list, 1)
+            y_ = torch.stack(y_list, 1)
+            loss = criterion(pred, target)
 
-        loss = criterion(output, target)
-
-        if args.task == 'strokemnist':
-            loss = loss.view(data.size()[0], data.size()[1])
-            loss_mask = Variable(torch.zeros(loss.size()))
-            for i in range(data.size()[0]):
-                t = int(mask[i].sum())
-                loss_mask[i, :t] = Variable(torch.exp(-(t-1-torch.arange(t))))
-            loss = loss * loss_mask
-
-        if args.task == 'seqmnist' or args.task == 'strokemnist':
-            loss = loss.mean()
-
-        total_loss += loss.cpu().data.numpy()[0]
         steps += 1
+        total_loss += loss.cpu().data.numpy()[0]
 
-        val_csvwriter.writerow(dict(epoch=str(epoch), loss=str(loss.cpu().data.numpy()[0]), avg_loss="-1", acc='-1')) #str(batch_accuracy)))
-        val_csvfile.flush()
-
-        # attempt to preserve memory
-        del data, target, output, loss
-
-    # print ("Acc: ", n_correct / n_total)
-    val_csvwriter.writerow(dict(epoch=str(epoch), loss="-1", avg_loss=str(total_loss/steps), acc='-1')) #str(n_correct/n_total)))
+    if args.task == 'seqmnist':
+        val_csvwriter.writerow(dict(epoch=str(epoch), avg_loss=str(total_loss/steps), acc=str(n_correct/(steps*args.batch_size))))
+    else:
+        val_csvwriter.writerow(dict(epoch=str(epoch), avg_loss=str(total_loss/steps), acc='-1'))
     val_csvfile.flush()
 
     return total_loss / steps
@@ -376,22 +332,26 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth'):
     if is_best:
         shutil.copyfile(os.path.join(args.log_dir, filename), os.path.join(args.log_dir,'model_best.pth'))
 
+
 def run():
     best_val_loss = np.inf
     for epoch in range(args.epochs):
+        tim = time.time()
         train(epoch)
+        trtim = time.time()
         val_loss = validate(epoch)
         scheduler.step()
         print ("Val Loss (epoch", epoch, "): ", val_loss)
-        is_best = val_loss < best_val_loss
-        best_val_loss = min(val_loss, best_val_loss)
-        save_checkpoint({
-            'epoch': epoch,
-            'model': args.model_type,
-            'state_dict': model.state_dict(),
-            'best_val_loss': best_val_loss,
-            'optimizer' : optimizer.state_dict(),
-        }, is_best, filename='checkpoint_'+str(epoch)+'.pth')
+        print("Time to train: ", trtim - tim, " val time: ", time.time() - trtim)
+        # is_best = val_loss < best_val_loss
+        # best_val_loss = min(val_loss, best_val_loss)
+        # save_checkpoint({
+        #     'epoch': epoch,
+        #     'model': args.model_type,
+        #     'state_dict': model.state_dict(),
+        #     'best_val_loss': best_val_loss,
+        #     'optimizer' : optimizer.state_dict(),
+        # }, is_best, filename='checkpoint_'+str(epoch)+'.pth')
 
 if __name__ == "__main__":
     run()
