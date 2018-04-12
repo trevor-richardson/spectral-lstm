@@ -55,7 +55,7 @@ from simple_lstm import SimpleLSTM, SimpleRNN
 from spectral_lstm import SpectralLSTM
 from svd_lstm import SvdLSTM
 from gru import VanillaGRU
-
+from peephole import PeepholeLSTM
 parser = argparse.ArgumentParser(description='SpectralRNN')
 parser.add_argument('--lr', type=float, default=1e-4,
                     help='learning rate (default: 1e-4)')
@@ -174,6 +174,11 @@ def create_model():
                                      layers=args.layers)
     elif args.model_type == 'lstm':
         return SimpleLSTM(input_size=dset.input_dimension,
+                                      hidden_size=args.hx,
+                                      output_size=dset.output_dimension,
+                                      layers=args.layers)
+    elif args.model_type == 'phole':
+        return PeepholeLSTM(input_size=dset.input_dimension,
                                       hidden_size=args.hx,
                                       output_size=dset.output_dimension,
                                       layers=args.layers)
