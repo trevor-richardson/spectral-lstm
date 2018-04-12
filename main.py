@@ -191,7 +191,6 @@ def create_model():
         return SpectralLSTM(input_size=dset.input_dimension,
                                           hidden_size=args.hx,
                                           output_size=dset.output_dimension,
-                                          output_weighting=args.output_weighting,
                                           layers=args.layers)
     elif args.model_type == 'svdlstm':
         return SvdLSTM(input_size=dset.input_dimension,

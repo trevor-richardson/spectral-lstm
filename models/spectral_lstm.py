@@ -15,33 +15,22 @@ class SpectralLSTMCell(nn.Module):
     def __init__(self,
                  input_size=1,
                  hidden_size=64,
-                 output_size=1,
-                 output_weighting=True,
-                 orthogonal=False):
+                 output_size=1):
         super(SpectralLSTMCell, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.output_weighting = output_weighting
-        self.orthogonal = orthogonal
 
         self.Wii = nn.Parameter(torch.Tensor(hidden_size, input_size))
-        #self.Wiit = nn.Parameter(torch.Tensor(input_size, hidden_size))
-        self.Wiit = nn.Parameter(torch.Tensor(hidden_size, input_size))
         self.Whi = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
-        #self.Whit = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
         self.Whit = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
         self.bi = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
 
         self.Wif = nn.Parameter(torch.Tensor(hidden_size, input_size))
-        #self.Wift = nn.Parameter(torch.Tensor(input_size, hidden_size))
-        self.Wift = nn.Parameter(torch.Tensor(hidden_size, input_size))
         self.Whf = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
         self.Whft = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
         self.bf = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
 
         self.Wig = nn.Parameter(torch.Tensor(hidden_size, input_size))
-        #self.Wigt = nn.Parameter(torch.Tensor(input_size, hidden_size))
-        self.Wigt = nn.Parameter(torch.Tensor(hidden_size, input_size))
         self.Whc = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
         self.Whct = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
         self.bg = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
@@ -50,56 +39,30 @@ class SpectralLSTMCell(nn.Module):
         self.Who = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
         self.bo = nn.Parameter(torch.Tensor(hidden_size, 1))
 
-        self.Wcx = nn.Parameter(torch.Tensor(hidden_size, 1))
+        self.Uinv = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
+        self.Vtinv = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
 
-        if orthogonal:
-            nn.init.orthogonal(self.Wii.data)
-            nn.init.orthogonal(self.Wiit.data)
-            nn.init.orthogonal(self.Whi.data)
-            nn.init.orthogonal(self.Whit.data)
-            nn.init.constant(self.bi.data, 0)
+        nn.init.xavier_normal(self.Wii.data)
+        nn.init.orthogonal(self.Whi.data)
+        nn.init.orthogonal(self.Whit.data)
+        nn.init.constant(self.bi.data, 0)
 
-            nn.init.orthogonal(self.Wif.data)
-            nn.init.orthogonal(self.Wift.data)
-            nn.init.orthogonal(self.Whf.data)
-            nn.init.orthogonal(self.Whft.data)
-            nn.init.constant(self.bf.data, 0)
+        nn.init.xavier_normal(self.Wif.data)
+        nn.init.orthogonal(self.Whf.data)
+        nn.init.orthogonal(self.Whft.data)
+        nn.init.constant(self.bf.data, 0)
 
-            nn.init.orthogonal(self.Wig.data)
-            nn.init.orthogonal(self.Wigt.data)
-            nn.init.orthogonal(self.Whc.data)
-            nn.init.orthogonal(self.Whct.data)
-            nn.init.constant(self.bg.data, 0)
+        nn.init.xavier_normal(self.Wig.data)
+        nn.init.orthogonal(self.Whc.data)
+        nn.init.orthogonal(self.Whct.data)
+        nn.init.constant(self.bg.data, 0)
 
-            nn.init.orthogonal(self.Wio.data)
-            nn.init.orthogonal(self.Who.data)
-            nn.init.constant(self.bo.data, 0)
+        nn.init.xavier_normal(self.Wio.data)
+        nn.init.orthogonal(self.Who.data)
+        nn.init.constant(self.bo.data, 0)
 
-            nn.init.orthogonal(self.Wcx.data)
-        else:
-            nn.init.xavier_normal(self.Wii.data)
-            nn.init.xavier_normal(self.Wiit.data)
-            nn.init.xavier_normal(self.Whi.data)
-            nn.init.xavier_normal(self.Whit.data)
-            nn.init.constant(self.bi.data, 0)
-
-            nn.init.xavier_normal(self.Wif.data)
-            nn.init.xavier_normal(self.Wift.data)
-            nn.init.xavier_normal(self.Whf.data)
-            nn.init.xavier_normal(self.Whft.data)
-            nn.init.constant(self.bf.data, 0)
-
-            nn.init.xavier_normal(self.Wig.data)
-            nn.init.xavier_normal(self.Wigt.data)
-            nn.init.xavier_normal(self.Whc.data)
-            nn.init.xavier_normal(self.Whct.data)
-            nn.init.constant(self.bg.data, 0)
-
-            nn.init.xavier_normal(self.Wio.data)
-            nn.init.xavier_normal(self.Who.data)
-            nn.init.constant(self.bo.data, 0)
-
-            nn.init.xavier_normal(self.Wcx.data)
+        nn.init.orthogonal(self.Vtinv)
+        nn.init.orthogonal(self.Uinv)
 
         self.states = None
 
@@ -123,16 +86,20 @@ class SpectralLSTMCell(nn.Module):
             d = d.cuda()
         return d
 
+    def get_batched_diagonals(self, m):
+        diags = []
+        for element in m:
+            diag = torch.diag(element)
+            diags.append(diag)
+        return torch.stack(diags).cuda()
+
 
     def forward(self, x):
         """
-        Block lstm forward
-
-        Assume cx is of form (batch size, hidden_size, hidden_size) now a matrix
+        Cx is of form (batch size, hidden_size, hidden_size) now a matrix
         """
         hx, cx = self.states
 
-        # print (x.size())
         if x.dim() == 1:
             x = x.unsqueeze(0)
         if hx.dim() == 1:
@@ -143,33 +110,27 @@ class SpectralLSTMCell(nn.Module):
 
         bs = x.size()[0]
 
-        i = F.sigmoid(torch.matmul(torch.matmul(self.Wii, x_diag), self.Wiit.t()) + torch.matmul(torch.matmul(self.Whi, hx_diag), self.Whit.t()) + self.bi)
-        f = F.sigmoid(torch.matmul(torch.matmul(self.Wif, x_diag), self.Wift.t()) + torch.matmul(torch.matmul(self.Whf, hx_diag), self.Whft.t()) + self.bf)
+        i = F.sigmoid(torch.matmul(torch.matmul(self.Wii, x_diag), self.Wii.t()) + torch.matmul(torch.matmul(self.Whi, hx_diag), self.Whit.t()) + self.bi)
+        f = F.sigmoid(torch.matmul(torch.matmul(self.Wif, x_diag), self.Wif.t()) + torch.matmul(torch.matmul(self.Whf, hx_diag), self.Whft.t()) + self.bf)
 
-        g = F.tanh(torch.matmul(torch.matmul(self.Wig, x_diag), self.Wigt.t()) + torch.matmul(torch.matmul(self.Whc, hx_diag), self.Whct.t()) + self.bg)
-
+        g = F.tanh(torch.matmul(torch.matmul(self.Wig, x_diag), self.Wig.t()) + torch.matmul(torch.matmul(self.Whc, hx_diag), self.Whct.t()) + self.bg)
 
         x_vec = x.unsqueeze(2)
         hx_vec = hx.unsqueeze(2)
 
-        o = F.sigmoid(torch.matmul(self.Wio, x_vec) + torch.matmul(self.Who, hx_vec) + self.bo)
-
-
+        o = F.sigmoid(torch.matmul(self.Wio, x_vec) + torch.matmul(self.Who, hx_vec) + self.bo).squeeze()
 
         cx = torch.mul(f, cx) + torch.mul(i, g)
 
-        if self.output_weighting:
-            hx = torch.matmul(torch.transpose(F.tanh(cx), 1, 2), o).squeeze(2)
-        else:
+        inv_mul = torch.matmul(torch.matmul(self.Uinv, cx), self.Vtinv)
 
-            cx_proj = torch.matmul(cx, self.Wcx)
-            hx = torch.mul(o, F.tanh(cx_proj)).squeeze(2)
+        proj_down = self.get_batched_diagonals(inv_mul)
 
-
+        hx = o * F.sigmoid(proj_down)
 
         self.states = (hx, cx)
-        return hx
 
+        return hx
 
 class SpectralLSTM(nn.Module):
 
@@ -177,22 +138,18 @@ class SpectralLSTM(nn.Module):
                  input_size=1,
                  hidden_size=64,
                  output_size=1,
-                 output_weighting=True,
-                 layers=1,
-                 orthogonal=False):
+                 layers=1):
         super(SpectralLSTM, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.output_weighting = output_weighting
         self.layers = layers
-        self.orthogonal = orthogonal
 
         self.lstms = nn.ModuleList()
-        self.lstms.append(SpectralLSTMCell(input_size=input_size, hidden_size=hidden_size, output_weighting=output_weighting, orthogonal=orthogonal))
+        self.lstms.append(SpectralLSTMCell(input_size=input_size, hidden_size=hidden_size))
         for i in range(self.layers-1):
-            self.lstms.append(SpectralLSTMCell(input_size=hidden_size, hidden_size=hidden_size, output_weighting=output_weighting, orthogonal=orthogonal))
+            self.lstms.append(SpectralLSTMCell(input_size=hidden_size, hidden_size=hidden_size))
         self.fc1 = nn.Linear(hidden_size, output_size)
 
         nn.init.xavier_normal(self.fc1.weight.data)
@@ -203,11 +160,7 @@ class SpectralLSTM(nn.Module):
             self.lstms[i].reset(batch_size=batch_size, cuda=cuda)
 
     def forward(self, x):
-        """
-        Block lstm forward
 
-        Assume cx is of form (batch size, hidden_size, hidden_size) now a matrix
-        """
         for i in range(len(self.lstms)):
             x = self.lstms[i](x)
         o = self.fc1(x)

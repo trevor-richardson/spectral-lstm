@@ -22,15 +22,12 @@ class SvdLSTMCell(nn.Module):
 
         #input weight matrices
         self.Wi = nn.Parameter(torch.Tensor(hidden_size, input_size))
-        self.Wit = nn.Parameter(torch.Tensor(hidden_size, input_size))
         self.bi = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
 
         self.Wf = nn.Parameter(torch.Tensor(hidden_size, input_size))
-        self.Wft = nn.Parameter(torch.Tensor(hidden_size, input_size))
         self.bf = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
 
         self.Wc = nn.Parameter(torch.Tensor(hidden_size, input_size))
-        self.Wct = nn.Parameter(torch.Tensor(hidden_size, input_size))
         self.bc = nn.Parameter(torch.Tensor(hidden_size, hidden_size))
 
         #These are recurrent weights where there is no projection
@@ -39,11 +36,9 @@ class SvdLSTMCell(nn.Module):
         self.bo = nn.Parameter(torch.Tensor(hidden_size, 1))
 
         nn.init.xavier_normal(self.Wi.data)
-        nn.init.xavier_normal(self.Wit.data)
         nn.init.constant(self.bi.data, 0)
 
         nn.init.xavier_normal(self.Wf.data)
-        nn.init.xavier_normal(self.Wft.data)
         nn.init.constant(self.bf.data, 0)
 
         nn.init.xavier_normal(self.Wo.data)
@@ -51,7 +46,6 @@ class SvdLSTMCell(nn.Module):
         nn.init.constant(self.bo.data, 0)
 
         nn.init.xavier_normal(self.Wc.data)
-        nn.init.xavier_normal(self.Wct.data)
         nn.init.constant(self.bc.data, 0)
 
         self.states = None
@@ -107,9 +101,9 @@ class SvdLSTMCell(nn.Module):
 
         bs = x.size()[0]
 
-        i = F.sigmoid(torch.matmul(torch.matmul(self.Wi, x_diag), self.Wit.t()) + torch.matmul(torch.matmul(self.U, hx_diag), self.V) + self.bi)
-        f = F.sigmoid(torch.matmul(torch.matmul(self.Wf, x_diag), self.Wft.t()) + torch.matmul(torch.matmul(self.U, hx_diag), self.V) + self.bf)
-        g = F.tanh(torch.matmul(torch.matmul(self.Wc, x_diag), self.Wct.t()) + torch.matmul(torch.matmul(self.U, hx_diag), self.V) + self.bc)
+        i = F.sigmoid(torch.matmul(torch.matmul(self.Wi, x_diag), self.Wi.t()) + torch.matmul(torch.matmul(self.U, hx_diag), self.V) + self.bi)
+        f = F.sigmoid(torch.matmul(torch.matmul(self.Wf, x_diag), self.Wf.t()) + torch.matmul(torch.matmul(self.U, hx_diag), self.V) + self.bf)
+        g = F.tanh(torch.matmul(torch.matmul(self.Wc, x_diag), self.Wc.t()) + torch.matmul(torch.matmul(self.U, hx_diag), self.V) + self.bc)
 
         x_vec = x.unsqueeze(2)
         hx_vec = hx.unsqueeze(2)
@@ -119,6 +113,7 @@ class SvdLSTMCell(nn.Module):
         cx = torch.mul(f, cx) + torch.mul(i, g)
 
         self.U, S, self.V = self.batch_svd(cx)
+
         #need to extract row in the proper gradient optimal way
         o = o.squeeze()
         hx = torch.mul(o, F.sigmoid(S))
