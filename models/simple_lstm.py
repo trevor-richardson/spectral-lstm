@@ -12,19 +12,14 @@ from torch.autograd import Variable
 
 class SimpleLSTMCell(nn.Module):
 
-    def __init__(self, input_size, output_size, orthogonal=False):
+    def __init__(self, input_size, output_size):
         super(SimpleLSTMCell, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
-        self.orthogonal = orthogonal
         self.lstm = nn.LSTMCell(input_size, output_size)
 
-        if orthogonal:
-            nn.init.orthogonal(self.lstm.weight_ih.data)
-            nn.init.orthogonal(self.lstm.weight_hh.data)
-        else:
-            nn.init.xavier_normal(self.lstm.weight_ih.data)
-            nn.init.xavier_normal(self.lstm.weight_hh.data)
+        nn.init.xavier_normal(self.lstm.weight_ih.data)
+        nn.init.orthogonal(self.lstm.weight_hh.data)
         nn.init.constant(self.lstm.bias_ih.data, 0)
         nn.init.constant(self.lstm.bias_hh.data, 0)
 
@@ -49,18 +44,16 @@ class SimpleLSTM(nn.Module):
                  input_size=1,
                  hidden_size=128,
                  output_size=1,
-                 layers=1,
-                 orthogonal=False):
+                 layers=1):
         super(SimpleLSTM, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.layers = layers
-        self.orthogonal = orthogonal
 
         self.lstms = nn.ModuleList()
-        self.lstms.append(SimpleLSTMCell(input_size, hidden_size, orthogonal=orthogonal))
+        self.lstms.append(SimpleLSTMCell(input_size, hidden_size))
         for i in range(self.layers-1):
-            self.lstms.append(SimpleLSTMCell(hidden_size, hidden_size, orthogonal=orthogonal))
+            self.lstms.append(SimpleLSTMCell(hidden_size, hidden_size))
         self.fc = nn.Linear(hidden_size, output_size)
 
         nn.init.xavier_normal(self.fc.weight.data)
@@ -99,19 +92,14 @@ from torch.autograd import Variable
 
 class SimpleRNNCell(nn.Module):
 
-    def __init__(self, input_size, output_size, orthogonal=False):
+    def __init__(self, input_size, output_size):
         super(SimpleRNNCell, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
-        self.orthogonal = orthogonal
         self.rnn = nn.RNNCell(input_size, output_size)
 
-        if orthogonal:
-            nn.init.orthogonal(self.rnn.weight_ih.data)
-            nn.init.orthogonal(self.rnn.weight_hh.data)
-        else:
-            nn.init.xavier_normal(self.rnn.weight_ih.data)
-            nn.init.xavier_normal(self.rnn.weight_hh.data)
+        nn.init.xavier_normal(self.rnn.weight_ih.data)
+        nn.init.orthogonal(self.rnn.weight_hh.data)
         nn.init.constant(self.rnn.bias_ih.data, 0)
         nn.init.constant(self.rnn.bias_hh.data, 0)
 
@@ -127,7 +115,6 @@ class SimpleRNNCell(nn.Module):
         self.states = self.states.detach()
 
     def forward(self, x):
-        # print (x.size())
         hx = self.rnn(x, self.states)
         self.states = hx
         return hx
@@ -139,20 +126,16 @@ class SimpleRNN(nn.Module):
                  input_size=1,
                  hidden_size=128,
                  output_size=1,
-                 layers=1,
-                 orthogonal=False):
+                 layers=1):
         super(SimpleRNN, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.layers = layers
-        self.orthogonal = orthogonal
 
         self.rnns = nn.ModuleList()
-        # the first layer will always be input-hidden
-        self.rnns.append(SimpleRNNCell(input_size, hidden_size, orthogonal=orthogonal))
+        self.rnns.append(SimpleRNNCell(input_size, hidden_size))
         for i in range(self.layers-1):
-            # add req num of hidden rnns
-            self.rnns.append(SimpleRNNCell(hidden_size, hidden_size, orthogonal=orthogonal))
+            self.rnns.append(SimpleRNNCell(hidden_size, hidden_size))
         self.fc = nn.Linear(hidden_size, output_size)
 
         nn.init.xavier_normal(self.fc.weight.data)

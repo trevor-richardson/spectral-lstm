@@ -7,19 +7,14 @@ from torch.autograd import Variable
 
 class VanillaGRUCell(nn.Module):
 
-    def __init__(self, input_size, output_size, orthogonal=False):
+    def __init__(self, input_size, output_size):
         super(VanillaGRUCell, self).__init__()
         self.input_size = input_size
         self.output_size = output_size
-        self.orthogonal = orthogonal
         self.gru = nn.GRUCell(input_size, output_size)
 
-        if orthogonal:
-            nn.init.orthogonal(self.gru.weight_ih.data)
-            nn.init.orthogonal(self.gru.weight_hh.data)
-        else:
-            nn.init.xavier_normal(self.gru.weight_ih.data)
-            nn.init.xavier_normal(self.gru.weight_hh.data)
+        nn.init.xavier_normal(self.gru.weight_ih.data)
+        nn.init.orthogonal(self.gru.weight_hh.data)
         nn.init.constant(self.gru.bias_ih.data, 0)
         nn.init.constant(self.gru.bias_hh.data, 0)
 
@@ -40,18 +35,16 @@ class VanillaGRU(nn.Module):
                  input_size=1,
                  hidden_size=128,
                  output_size=1,
-                 layers=1,
-                 orthogonal=False):
+                 layers=1):
         super(VanillaGRU, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.layers = layers
-        self.orthogonal = orthogonal
 
         self.grus = nn.ModuleList()
-        self.grus.append(VanillaGRUCell(input_size, hidden_size, orthogonal=orthogonal))
+        self.grus.append(VanillaGRUCell(input_size, hidden_size))
         for i in range(self.layers-1):
-            self.grus.append(VanillaGRUCell(hidden_size, hidden_size, orthogonal=orthogonal))
+            self.grus.append(VanillaGRUCell(hidden_size, hidden_size))
         self.fc = nn.Linear(hidden_size, output_size)
 
         nn.init.xavier_normal(self.fc.weight.data)
