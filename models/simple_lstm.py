@@ -25,9 +25,9 @@ class SimpleLSTMCell(nn.Module):
 
     def reset(self, batch_size=1, cuda=False):
         if cuda:
-            self.states = (Variable(torch.zeros(batch_size, self.output_size)).float().cuda(), Variable(torch.randn(batch_size, self.output_size)).float().cuda())
+            self.states = (Variable(torch.zeros(batch_size, self.output_size)).float().cuda(), Variable(torch.zeros(batch_size, self.output_size)).float().cuda())
         else:
-            self.states = (Variable(torch.zeros(batch_size, self.output_size)).float(), Variable(torch.randn(batch_size, self.output_size)).float())
+            self.states = (Variable(torch.zeros(batch_size, self.output_size)).float(), Variable(torch.zeros(batch_size, self.output_size)).float())
 
     def detach(self):
         self.states = (self.states[0].detach(), self.states[1].detach())

@@ -81,9 +81,9 @@ class PeepholeLSTMCell(nn.Module):
 
     def reset(self, batch_size=1, cuda=True):
         if cuda:
-            self.states = (Variable(torch.randn(batch_size, self.hidden_size)).cuda(), Variable(torch.randn(batch_size, self.hidden_size)).cuda())
+            self.states = (Variable(torch.zeros(batch_size, self.hidden_size)).cuda(), Variable(torch.zeros(batch_size, self.hidden_size)).cuda())
         else:
-            self.states = (Variable(torch.randn(batch_size, self.hidden_size)), Variable(torch.randn(batch_size, self.hidden_size)))
+            self.states = (Variable(torch.zeros(batch_size, self.hidden_size)), Variable(torch.zeros(batch_size, self.hidden_size)))
 
     def forward(self, X_t):
         h_t_previous, c_t_previous = self.states

@@ -20,9 +20,9 @@ class VanillaGRUCell(nn.Module):
 
     def reset(self, batch_size=1, cuda=True):
         if cuda:
-            self.recurrent_state = (Variable(torch.randn(batch_size, self.output_size)).float().cuda())
+            self.recurrent_state = (Variable(torch.zeros(batch_size, self.output_size)).float().cuda())
         else:
-            self.recurrent_state = (Variable(torch.randn(batch_size, self.output_size)).float())
+            self.recurrent_state = (Variable(torch.zeros(batch_size, self.output_size)).float())
 
     def forward(self, x):
         hx = self.gru(x, self.recurrent_state)

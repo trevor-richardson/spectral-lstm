@@ -217,13 +217,18 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr) #, momentum=args.momentum
 def run_sequence_no_act(seq, target):
     outputs = []
     targets = []
+    count = 0
+
+
     model.reset(batch_size=seq.size(0), cuda=args.cuda)
+
     for i, input_t in enumerate(seq.chunk(seq.size(1), dim=1)):
         input_t = input_t.squeeze(1)
         p = model(input_t)
 
         outputs.append(p)
         targets.append(target)
+        count +=1
     return outputs, targets
 
 def run_sequence(seq, target):
@@ -256,11 +261,10 @@ def train(epoch):
         data, target = Variable(data), Variable(target)
         optimizer.zero_grad()
 
-        if args.task == 'mem' or args.task == 'add' or args.task == 'xor' or args.task == 'mul':
+        if args.task == 'mem' or args.task == 'add' or args.task == 'mul':
             predicted_list, y_list = run_sequence_no_act(data, target)
         else:
             predicted_list, y_list = run_sequence(data, target)
-
 
         if args.task == 'seqmnist':
             pred = torch.cat(predicted_list)
@@ -314,7 +318,10 @@ def validate(epoch):
 
         data, target = Variable(data, volatile=True), Variable(target, volatile=True)
 
-        predicted_list, y_list = run_sequence(data, target)
+        if args.task == 'mem' or args.task == 'add' or args.task == 'mul':
+            predicted_list, y_list = run_sequence_no_act(data, target)
+        else:
+            predicted_list, y_list = run_sequence(data, target)
 
         if args.task == 'seqmnist':
             pred = predicted_list[-1]
@@ -341,8 +348,8 @@ def validate(epoch):
         total_loss += loss.cpu().data.numpy()[0]
 
         optimizer.zero_grad()
+    print(pred, y_)
 
-    # print("pred --- target", pred[0].data, y_[0].data)
     if args.task == 'seqmnist' or args.task == 'mem':
         print("Validation Acc ", n_correct/n_possible)
         val_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/n_possible)))

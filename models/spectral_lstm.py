@@ -68,9 +68,9 @@ class SpectralLSTMCell(nn.Module):
 
     def reset(self, batch_size=1, cuda=False):
         if cuda:
-            self.states = (Variable(torch.randn(batch_size, self.hidden_size)).cuda(), Variable(torch.randn(batch_size, self.hidden_size, self.hidden_size)).cuda())
+            self.states = (Variable(torch.zeros(batch_size, self.hidden_size)).cuda(), Variable(torch.zeros(batch_size, self.hidden_size, self.hidden_size)).cuda())
         else:
-            self.states = (Variable(torch.randn(batch_size, self.hidden_size)), Variable(torch.randn(batch_size, self.hidden_size, self.hidden_size)))
+            self.states = (Variable(torch.zeros(batch_size, self.hidden_size)), Variable(torch.zeros(batch_size, self.hidden_size, self.hidden_size)))
 
     def batch_diag(self, m):
         """

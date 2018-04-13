@@ -21,7 +21,6 @@ class Addition(Dataset):
         self.full_data = torch.load(os.path.join(os.path.dirname(__file__), 'traindata.pt'))
 
         n_elements = self.full_data.shape[0]
-        print(self.full_data.shape, "data")
         self.n_train = int(0.8 * n_elements)
         self.n_val = int(0.1 * n_elements)
         self.n_test = n_elements - self.n_train - self.n_val
@@ -29,10 +28,8 @@ class Addition(Dataset):
         # n seq x tsteps x dim
         self.train_inputs = torch.from_numpy(self.full_data[:self.n_train, :, :2]).float()
         self.train_targets = torch.from_numpy(self.full_data[:self.n_train, :, 2:]).float()
-
         self.val_inputs = torch.from_numpy(self.full_data[self.n_train:self.n_train+self.n_val, :, :2]).float()
         self.val_targets = torch.from_numpy(self.full_data[self.n_train:self.n_train+self.n_val, :, 2:]).float()
-
         self.test_inputs = torch.from_numpy(self.full_data[self.n_train+self.n_val:, :, :2]).float()
         self.test_targets = torch.from_numpy(self.full_data[self.n_train+self.n_val:, :, 2:]).float()
 
@@ -65,14 +62,12 @@ class Addition(Dataset):
             return self.test_inputs[i], self.test_targets[i]
 
 if __name__ == '__main__':
-
     # generate data
     L = 50 # sequence length
     N = 100000 # n samples
-
     # samples x length, (2 x in, 1 x out)
     d = np.random.uniform(size=(N, L, 3)).astype(np.float32)
-    print (d.shape)
+    print(d.shape)
     for i in range(N):
         d[i, :, 1:] = 0 # set all signals to 0
         # generate the two random ind
@@ -82,5 +77,5 @@ if __name__ == '__main__':
         d[i, ind2, 1] = 1
         # set final ind as sum
         d[i, -1, :] = 0
-        d[i, -1, 2] = (d[i, ind1, 0] + d[i, ind2, 0]) / 2.0
+        d[i, -1, 2] = (d[i, ind1, 0] + d[i, ind2, 0])
     torch.save(d, open('traindata.pt', 'wb'))

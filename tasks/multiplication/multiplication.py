@@ -70,12 +70,12 @@ if __name__ == '__main__':
     # input("")
 
     # generate data
-    L = 200 # sequence length
-    N = 10000 # n samples
+    L = 50 # sequence length
+    N = 100000 # n samples
 
     # samples x length, (2 x in, 1 x out)
     d = np.random.uniform(size=(N, L, 3)).astype(np.float32)
-    print (d.shape)
+    # print (d.shape)
     for i in range(N):
         d[i, :, 1:] = 0 # set all signals to 0
         # generate the two random ind
@@ -83,7 +83,8 @@ if __name__ == '__main__':
         d[i, ind1, 1] = 1
         ind2 = np.random.randint(L//10, L//2)
         d[i, ind2, 1] = 1
-        # set final ind as sum
+
         d[i, -1, :] = 0
         d[i, -1, 2] = (d[i, ind1, 0] * d[i, ind2, 0])
+
     torch.save(d, open('traindata.pt', 'wb'))

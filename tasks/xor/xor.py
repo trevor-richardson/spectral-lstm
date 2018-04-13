@@ -68,8 +68,8 @@ class XOR(Dataset):
 
 if __name__ == '__main__':
     # generate data
-    L = 200 # sequence length
-    N = 10000 # n samples
+    L = 50 # sequence length
+    N = 100000 # n samples
 
     # samples x length, (2 x in, 1 x out)
     d = np.zeros((N, L, 3)).astype(np.float32)
