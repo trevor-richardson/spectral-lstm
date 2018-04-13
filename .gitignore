@@ -1,2 +1,8 @@
-/tasks
+/tasks/addition/*.pt
+/tasks/multiplication/*.pt
+/tasks/bouncing_ball/*.pt
+/tasks/noiseless_memorization/*.pt
+/tasks/sequential_mnist/processed
+/tasks/sequential_mnist/raw
+/tasks/xor/*.pt
 /results

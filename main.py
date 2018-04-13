@@ -42,7 +42,6 @@ Write visualization classes
 Update Readme
 
 '''
-
 #get the datasets of iterest
 from addition import Addition
 from bouncing_ball import BouncingBall
@@ -56,6 +55,7 @@ from spectral_lstm import SpectralLSTM
 from svd_lstm import SvdLSTM
 from gru import VanillaGRU
 from peephole import PeepholeLSTM
+
 parser = argparse.ArgumentParser(description='SpectralRNN')
 parser.add_argument('--lr', type=float, default=1e-4,
                     help='learning rate (default: 1e-4)')
@@ -211,9 +211,20 @@ if args.cuda:
     model.cuda()
 
 #initalize optimizer and learning rate decay scheduler
-optimizer = optim.RMSprop(model.parameters(), lr=args.lr) #, momentum=args.momentum, alpha=args.alpha)
-scheduler = ExponentialLR(optimizer, 0.95)
+optimizer = optim.Adam(model.parameters(), lr=args.lr) #, momentum=args.momentum, alpha=args.alpha)
+# scheduler = ExponentialLR(optimizer, 0.95)
 
+def run_sequence_no_act(seq, target):
+    outputs = []
+    targets = []
+    model.reset(batch_size=seq.size(0), cuda=args.cuda)
+    for i, input_t in enumerate(seq.chunk(seq.size(1), dim=1)):
+        input_t = input_t.squeeze(1)
+        p = model(input_t)
+
+        outputs.append(p)
+        targets.append(target)
+    return outputs, targets
 
 def run_sequence(seq, target):
     outputs = []
@@ -244,7 +255,12 @@ def train(epoch):
             data, target = data.cuda(), target.cuda()
         data, target = Variable(data), Variable(target)
         optimizer.zero_grad()
-        predicted_list, y_list = run_sequence(data, target)
+
+        if args.task == 'mem' or args.task == 'add' or args.task == 'xor' or args.task == 'mul':
+            predicted_list, y_list = run_sequence_no_act(data, target)
+        else:
+            predicted_list, y_list = run_sequence(data, target)
+
 
         if args.task == 'seqmnist':
             pred = torch.cat(predicted_list)
@@ -263,15 +279,15 @@ def train(epoch):
             n_possible += int(prediction.shape[0] * prediction.shape[1])
             loss = F.nll_loss(pred, target)
         else:
-            pred = torch.stack(predicted_list, 1)
-            y_ = torch.stack(y_list, 1)
-            loss = criterion(pred, target)
+            pred = predicted_list[-1]
+            y_ = target[:,-1]
+            loss = criterion(pred, y_)
 
         loss.backward()
         optimizer.step()
         steps += 1
         total_loss += loss.cpu().data.numpy()[0]
-
+        optimizer.zero_grad()
 
     print("Train loss ", total_loss/steps)
     if args.task == 'seqmnist' or args.task == 'mem':
@@ -292,6 +308,7 @@ def validate(epoch):
     steps = 0
 
     for batch_idx, (data, target) in enumerate(data_loader):
+
         if args.cuda:
             data, target = data.cuda(), target.cuda()
 
@@ -316,13 +333,16 @@ def validate(epoch):
             n_possible += int(prediction.shape[0] * prediction.shape[1])
             loss = F.nll_loss(pred, target)
         else:
-            pred = torch.stack(predicted_list, 1)
-            y_ = torch.stack(y_list, 1)
-            loss = criterion(pred, target)
+            pred = predicted_list[-1]
+            y_ = target[:,-1]
+            loss = criterion(pred, y_)
 
         steps += 1
         total_loss += loss.cpu().data.numpy()[0]
 
+        optimizer.zero_grad()
+
+    # print("pred --- target", pred[0].data, y_[0].data)
     if args.task == 'seqmnist' or args.task == 'mem':
         print("Validation Acc ", n_correct/n_possible)
         val_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/n_possible)))
@@ -337,7 +357,6 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth'):
     if is_best:
         shutil.copyfile(os.path.join(args.log_dir, filename), os.path.join(args.log_dir,'model_best.pth'))
 
-
 def run():
     best_val_loss = np.inf
     for epoch in range(args.epochs):
@@ -346,7 +365,7 @@ def run():
         train(epoch)
         trtim = time.time()
         val_loss = validate(epoch)
-        scheduler.step()
+        # scheduler.step()
         print ("Val Loss (epoch", epoch, "): ", val_loss)
         print("Time to train: ", trtim - tim, " val time: ", time.time() - trtim)
         # is_best = val_loss < best_val_loss
