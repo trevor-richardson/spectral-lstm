@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-seed = 1
+seed = 4
 torch.manual_seed(seed)
 np.random.seed(seed)
 random.seed(seed)
@@ -39,6 +39,7 @@ class XOR(Dataset):
 
         self.input_dimension = self.train_inputs.size(2)
         self.output_dimension = self.train_targets.size(2)
+        print(self.output_dimension)
 
     def train(self):
         self.mode = XOR.MODE_TRAIN
@@ -83,4 +84,6 @@ if __name__ == '__main__':
         d[i, ind2, 1] = 1
         # set final ind as xor
         d[i, -1, 2] = (d[i, ind1, 0] and not d[i, ind2, 0]) or (not d[i, ind1, 0] and d[i, ind2, 0])
+    print(d[0])
+
     torch.save(d, open('traindata.pt', 'wb'))

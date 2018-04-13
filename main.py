@@ -133,7 +133,7 @@ def create_criterion():
         criterion = nn.BCELoss()
     elif args.task == 'xor':
         activation = nn.Sigmoid()
-        criterion = nn.MSELoss()
+        criterion = nn.BCELoss()
     elif args.task == 'bball':
         # NOTE: want sigmoid because each pixel output could be a prob
         activation = log_sigmoid
@@ -214,7 +214,7 @@ if args.cuda:
 optimizer = optim.Adam(model.parameters(), lr=args.lr) #, momentum=args.momentum, alpha=args.alpha)
 # scheduler = ExponentialLR(optimizer, 0.95)
 
-def run_sequence_no_act(seq, target):
+def run_sequence_noactivation(seq, target):
     outputs = []
     targets = []
     count = 0
@@ -244,7 +244,6 @@ def run_sequence(seq, target):
 
     return outputs, targets
 
-
 def train(epoch):
     model.train()
     dset.train()
@@ -262,7 +261,7 @@ def train(epoch):
         optimizer.zero_grad()
 
         if args.task == 'mem' or args.task == 'add' or args.task == 'mul':
-            predicted_list, y_list = run_sequence_no_act(data, target)
+            predicted_list, y_list = run_sequence_noactivation(data, target)
         else:
             predicted_list, y_list = run_sequence(data, target)
 
@@ -282,6 +281,14 @@ def train(epoch):
             n_correct += prediction.eq(target.data.view_as(prediction)).sum()
             n_possible += int(prediction.shape[0] * prediction.shape[1])
             loss = F.nll_loss(pred, target)
+        elif args.task == 'xor':
+            pred = predicted_list[-1]
+            y_ = target[:,-1].contiguous()
+            prediction = torch.round(pred.data).contiguous() # get the index of the max log-probability
+            n_correct2 = prediction.eq(y_.data).sum()
+            n_correct += prediction.eq(y_.data).sum()
+            n_possible += int(prediction.shape[0])
+            loss = criterion(pred, y_)
         else:
             pred = predicted_list[-1]
             y_ = target[:,-1]
@@ -294,7 +301,7 @@ def train(epoch):
         optimizer.zero_grad()
 
     print("Train loss ", total_loss/steps)
-    if args.task == 'seqmnist' or args.task == 'mem':
+    if args.task == 'seqmnist' or args.task == 'mem' or args.task == 'xor':
         print("Train Acc ", (n_correct/ n_possible))
         train_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/n_possible)))
     else:
@@ -319,7 +326,7 @@ def validate(epoch):
         data, target = Variable(data, volatile=True), Variable(target, volatile=True)
 
         if args.task == 'mem' or args.task == 'add' or args.task == 'mul':
-            predicted_list, y_list = run_sequence_no_act(data, target)
+            predicted_list, y_list = run_sequence_noactivation(data, target)
         else:
             predicted_list, y_list = run_sequence(data, target)
 
@@ -339,6 +346,14 @@ def validate(epoch):
             n_correct += prediction.eq(target.data.view_as(prediction)).sum()
             n_possible += int(prediction.shape[0] * prediction.shape[1])
             loss = F.nll_loss(pred, target)
+        elif args.task == 'xor':
+            pred = predicted_list[-1]
+            y_ = target[:,-1].contiguous()
+            prediction = torch.round(pred.data).contiguous() # get the index of the max log-probability
+            n_correct2 = prediction.eq(y_.data).sum()
+            n_correct += prediction.eq(y_.data).sum()
+            n_possible += int(prediction.shape[0])
+            loss = criterion(pred, y_)
         else:
             pred = predicted_list[-1]
             y_ = target[:,-1]
@@ -348,9 +363,8 @@ def validate(epoch):
         total_loss += loss.cpu().data.numpy()[0]
 
         optimizer.zero_grad()
-    print(pred, y_)
 
-    if args.task == 'seqmnist' or args.task == 'mem':
+    if args.task == 'seqmnist' or args.task == 'mem' or args.task == 'xor':
         print("Validation Acc ", n_correct/n_possible)
         val_csvwriter.writerow(dict(epoch=str(epoch), loss=str(total_loss/steps), acc=str(n_correct/n_possible)))
     else:
