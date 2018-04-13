@@ -219,7 +219,6 @@ def run_sequence_noactivation(seq, target):
     targets = []
     count = 0
 
-
     model.reset(batch_size=seq.size(0), cuda=args.cuda)
 
     for i, input_t in enumerate(seq.chunk(seq.size(1), dim=1)):
