@@ -16,47 +16,48 @@ class IntersectionRNNCell(nn.Module):
 
         print("Initializing IntersectionRNNCell")
         self.hidden_size = hidden_size
+        print("input size ", input_size)
         if(weight_init==None):
-            self.W_yin = nn.Parameter(torch.zeros(input_size, hidden_size))
+            self.W_yin = nn.Parameter(torch.zeros(input_size, input_size))
             self.W_yin = nn.init.xavier_normal(self.W_yin)
             self.W_hin = nn.Parameter(torch.zeros(input_size, hidden_size))
             self.W_hin = nn.init.xavier_normal(self.W_hin)
-            self.W_gy = nn.Parameter(torch.zeros(input_size, hidden_size))
+            self.W_gy = nn.Parameter(torch.zeros(input_size, input_size))
             self.W_gy = nn.init.xavier_normal(self.W_gy)
             self.W_gh = nn.Parameter(torch.zeros(input_size, hidden_size))
             self.W_gh = nn.init.xavier_normal(self.W_gh)
         else:
-            self.W_yin = nn.Parameter(torch.zeros(input_size, hidden_size))
+            self.W_yin = nn.Parameter(torch.zeros(input_size, input_size))
             self.W_yin = weight_init(self.W_yin)
             self.W_hin = nn.Parameter(torch.zeros(input_size, hidden_size))
             self.W_hin = weight_init(self.W_hin)
-            self.W_gy = nn.Parameter(torch.zeros(input_size, hidden_size))
+            self.W_gy = nn.Parameter(torch.zeros(input_size, input_size))
             self.W_gy = weight_init(self.W_gy)
             self.W_gh = nn.Parameter(torch.zeros(input_size, hidden_size))
             self.W_gh = weight_init(self.W_gh)
 
         if(reccurent_weight_init == None):
-            self.U_yin = nn.Parameter(torch.zeros(hidden_size, hidden_size))
+            self.U_yin = nn.Parameter(torch.zeros(hidden_size, input_size))
             self.U_yin = nn.init.orthogonal(self.U_yin)
             self.U_hin = nn.Parameter(torch.zeros(hidden_size, hidden_size))
             self.U_hin = nn.init.orthogonal(self.U_hin)
-            self.U_gy = nn.Parameter(torch.zeros(hidden_size, hidden_size))
+            self.U_gy = nn.Parameter(torch.zeros(hidden_size, input_size))
             self.U_gy = nn.init.orthogonal(self.U_gy)
             self.U_gh = nn.Parameter(torch.zeros(hidden_size, hidden_size))
             self.U_gh = nn.init.orthogonal(self.U_gh)
         else:
-            self.U_yin = nn.Parameter(torch.zeros(hidden_size, hidden_size))
+            self.U_yin = nn.Parameter(torch.zeros(input_size, input_size))
             self.U_yin = recurrent_weight_initializer(self.U_yin)
             self.U_hin = nn.Parameter(torch.zeros(hidden_size, hidden_size))
             self.U_hin = recurrent_weight_initializer(self.U_hin)
-            self.U_gy = nn.Parameter(torch.zeros(hidden_size, hidden_size))
+            self.U_gy = nn.Parameter(torch.zeros(input_size, input_size))
             self.U_gy = recurrent_weight_initializer(self.U_gy)
             self.U_gh = nn.Parameter(torch.zeros(hidden_size, hidden_size))
             self.U_gh = recurrent_weight_initializer(self.U_gh)
 
-        self.b_yin = nn.Parameter(torch.zeros(hidden_size))
+        self.b_yin = nn.Parameter(torch.zeros(input_size))
         self.b_hin = nn.Parameter(torch.zeros(hidden_size))
-        self.b_gy = nn.Parameter(torch.zeros(hidden_size))
+        self.b_gy = nn.Parameter(torch.zeros(input_size))
         self.b_gh = nn.Parameter(torch.zeros(hidden_size))
 
         if(drop==None):
@@ -71,13 +72,7 @@ class IntersectionRNNCell(nn.Module):
             self.rec_dropout = nn.Dropout(rec_drop)
 
         self.states = None
-        if((self.W_yin.data.size()[0], self.W_yin.data.size()[1]) != (input_size, hidden_size) or (self.U_yin.data.size()[0], self.U_yin.data.size()[1]) != (hidden_size, hidden_size)
-            or self.b_yin.data.size()[0] != (hidden_size)):
-            print("Dimensions for weight_init return should be (input_dimension, hidden_size)\nDimensions for reccurent_weight_init shoudl be (hidden_size, hidden_size)")
-            print((self.W_yin.data.size()[0], self.W_yin.data.size()[1]), "Current weight_init shape           ---- The shape should be ", (input_size, hidden_size))
-            print((self.U_yin.data.size()[0], self.U_yin.data.size()[1]), "Current reccurent_weight_init shape ---- The shape should be ", (hidden_size, hidden_size))
-            print(self.b_yin.data.size()[0], "Current bias shape                  ---- The shape should be ", (hidden_size,))
-            sys.exit()
+
 
     def reset(self, batch_size=1, cuda=True):
         if cuda:
@@ -95,23 +90,22 @@ class IntersectionRNNCell(nn.Module):
 
 
         y_in = F.tanh(
-            torch.mm(X_t, self.W_yin) + torch.mm(c_t_previous, self.U_yin) + self.b_yin #w_f needs to be the previous input shape by the number of hidden neurons
+            torch.mm(X_t, self.W_yin) + torch.mm(h_t_previous, self.U_yin) + self.b_yin #w_f needs to be the previous input shape by the number of hidden neurons
         )
 
-
         h_in = F.tanh(
-            torch.mm(X_t, self.W_hin) + torch.mm(c_t_previous, self.U_hin) + self.b_hin
+            torch.mm(X_t, self.W_hin) + torch.mm(h_t_previous, self.U_hin) + self.b_hin
         )
 
         g_y = F.sigmoid(
-            torch.mm(X_t, self.W_gy) + torch.mm(c_t_previous, self.U_gy) + self.b_gy
+            torch.mm(X_t, self.W_gy) + torch.mm(h_t_previous, self.U_gy) + self.b_gy
         )
 
         g_h = F.sigmoid(
-            torch.mm(X_t, self.W_gh) + torch.mm(c_t_previous, self.U_gh) + self.b_gh
+            torch.mm(X_t, self.W_gh) + torch.mm(h_t_previous, self.U_gh) + self.b_gh
         )
 
-        y_t = g_y * X_t + ((g_y - 1) *-1) * y_in
+        y_t = g_y * X_t + ((g_y - 1) * -1) * y_in
 
         h_t = g_h * h_t_previous + ((g_h - 1) *-1) * h_in
 
@@ -135,8 +129,8 @@ class IntersectionRNN(nn.Module):
         self.lstms = nn.ModuleList()
         self.lstms.append(IntersectionRNNCell(input_size=input_size, hidden_size=hidden_size))
         for i in range(self.layers-1):
-            self.lstms.append(IntersectionRNNCell(input_size=hidden_size, hidden_size=hidden_size))
-        self.fc1 = nn.Linear(hidden_size, output_size)
+            self.lstms.append(IntersectionRNNCell(input_size=input_size, hidden_size=hidden_size))
+        self.fc1 = nn.Linear(input_size, output_size)
 
         nn.init.xavier_normal(self.fc1.weight.data)
         nn.init.constant(self.fc1.bias.data, 0)

@@ -56,6 +56,7 @@ from svd_lstm import SvdLSTM
 from gru import VanillaGRU
 from peephole import PeepholeLSTM
 from ugrnn import UGRNN
+from intersectionRNN import IntersectionRNN
 
 parser = argparse.ArgumentParser(description='SpectralRNN')
 parser.add_argument('--lr', type=float, default=1e-4,
@@ -78,7 +79,7 @@ parser.add_argument('--log-dir', default=base_dir + '/results/',
                     help='directory to save agent logs (default: base_dir/results/)')
 parser.add_argument('--model-type', type=str, default='lstm',
                     help='use rnn, lstm, gru, phole, slstm, svdlstm, ugrnn, rnn+')
-parser.add_argument('--task', type=str, default='mem',
+parser.add_argument('--task', type=str, default='add',
                     help='use add, mul, mem, xor, bball, seqmnist')
 parser.add_argument('--sequence-len', type=int, default=50,
                     help='mem seq len (default: 50)')
@@ -189,7 +190,10 @@ def create_model():
                                       output_size=dset.output_dimension,
                                       layers=args.layers)
     elif args.model_type == 'rnn+':
-        return PeepholeLSTM(input_size=dset.input_dimension,
+        if args.layers == 1:
+            args.layers = 2
+        print(args.layers)
+        return IntersectionRNN(input_size=dset.input_dimension,
                                       hidden_size=args.hx,
                                       output_size=dset.output_dimension,
                                       layers=args.layers)
