@@ -232,17 +232,14 @@ optimizer = optim.Adam(model.parameters(), lr=args.lr) #, momentum=args.momentum
 def run_sequence_noactivation(seq, target):
     outputs = []
     targets = []
-    count = 0
 
     model.reset(batch_size=seq.size(0), cuda=args.cuda)
 
     for i, input_t in enumerate(seq.chunk(seq.size(1), dim=1)):
         input_t = input_t.squeeze(1)
         p = model(input_t)
-
         outputs.append(p)
         targets.append(target)
-        count +=1
     return outputs, targets
 
 def run_sequence(seq, target):
@@ -400,18 +397,8 @@ def run():
         train(epoch)
         trtim = time.time()
         val_loss = validate(epoch)
-        # scheduler.step()
         print ("Val Loss (epoch", epoch, "): ", val_loss)
         print("Time to train: ", trtim - tim, " val time: ", time.time() - trtim)
-        # is_best = val_loss < best_val_loss
-        # best_val_loss = min(val_loss, best_val_loss)
-        # save_checkpoint({
-        #     'epoch': epoch,
-        #     'model': args.model_type,
-        #     'state_dict': model.state_dict(),
-        #     'best_val_loss': best_val_loss,
-        #     'optimizer' : optimizer.state_dict(),
-        # }, is_best, filename='checkpoint_'+str(epoch)+'.pth')
 
 if __name__ == "__main__":
     run()
